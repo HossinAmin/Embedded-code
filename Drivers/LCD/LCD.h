@@ -47,9 +47,10 @@ void LCD_init();
 void LCD_sendCom(char com);
 //sends on char to the LCD
 void LCD_sendData(char data);
+//checks if LCD is busy
+Bool LCD_isBusy();
 //clears your display
 void LCD_clearDisplay();
-
 //displays a string on LCD
 void LCD_sendString(char *s);
 //displays a number on LCD
@@ -61,7 +62,7 @@ void LCD_GotoXY(uint8 x,uint8 y);
 //removes on char from LCD
 void LCD_backSpace();
 //creates a custom char and returns it location so you can make it appear on the LCD
-uint8 LCD_createChar(char *C);
+uint8 LCD_createChar(char C[]);
 
 
 

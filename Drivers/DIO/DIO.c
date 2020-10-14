@@ -44,7 +44,7 @@ void setPinVal(char port,uint8 pin,Bool val)
 		break;
 		case 'D':
 		case 'd':
-		SETBIT(PORT_D_D,pin,val);
+		SETBIT(PORT_D,pin,val);
 		break;
 	}
 }
@@ -116,7 +116,7 @@ Bool getPinVal(char port,uint8 pin)
 		return CHECKBIT(PIN_D,pin);
 		break;
 		default:
-		return false;
+		return False;
 		break;
 	}
 }
@@ -128,16 +128,16 @@ uint8 getPortVal(char port)
 	{
 		case 'A':
 		case 'a':
-		return PORT_A;
+		return PIN_A;
 		case 'B':
 		case 'b':
-		return PORT_B;
+		return PIN_B;
 		case 'C':
 		case 'c':
-		return PORT_C;
+		return PIN_B;
 		case 'D':
 		case 'd':
-		return PORT_D;
+		return PIN_D;
 		default:
 		return 0x0;
 		break;
@@ -267,6 +267,50 @@ void setHighNibVal(char port,uint8 val)
 
 }
 
+uint8 getLowNibVal(char port)
+{
+switch(port)
+{
+	case 'A':
+	case 'a':
+	return (PIN_A<<4)>>4;
+	break;
+	case 'B':
+	case 'b':
+	return (PIN_B<<4)>>4;
+	break;
+	case 'C':
+	case 'c':
+	return (PIN_C<<4)>>4;
+	break;
+	case 'D':
+	case 'd':
+	return (PIN_D<<4)>>4;
+	break;
+}	
+}
+uint8 getHighNibVal(char port)
+{
+	switch(port)
+	{
+		case 'A':
+		case 'a':
+		return (PIN_A>>4);
+		break;
+		case 'B':
+		case 'b':
+		return (PIN_B>>4);
+		break;
+		case 'C':
+		case 'c':
+		return (PIN_C>>4);
+		break;
+		case 'D':
+		case 'd':
+		return (PIN_D>>4);
+		break;
+	}
+}
 //missing default
 void setLowNibDir(char port,Bool dir)
 {

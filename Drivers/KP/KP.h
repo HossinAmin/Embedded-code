@@ -7,7 +7,7 @@
 
 //keypad dimensions 
 
-#define KPPort 'b'
+#define KPPort 'd'
 
 //functions
 void KP_init();

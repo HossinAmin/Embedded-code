@@ -29,7 +29,8 @@ void setHighNibDir(char port,Bool dir);
 void setLowNibVal(char port,uint8 val);
 void setHighNibVal(char port,uint8 val);
 
-
+uint8 getLowNibVal(char port);
+uint8 getHighNibVal(char port);
 
 
 

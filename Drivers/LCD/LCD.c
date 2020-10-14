@@ -49,6 +49,7 @@ void LCD_sendCom(char com)
 
 void LCD_sendData(char data)
 {
+	
 	setPinVal(LCD_CP,RS,HIGH);
 	setPinVal(LCD_CP,RW,LOW);
 	
@@ -59,6 +60,32 @@ void LCD_sendData(char data)
 
 }
 
+Bool LCD_isBusy()
+{
+	//setting high nibble to input
+	setHighNibDir(LCD_DP,IN);
+	
+	uint8 state=0;
+	setPinVal(LCD_CP,RS,LOW);
+	setPinVal(LCD_CP,RW,HIGH);
+	
+	//reading high 4 bits
+	setPinVal(LCD_CP,LCD_EN,HIGH);
+	state = getHighNibVal(LCD_DP);
+	_delay_us(50);
+	setPinVal(LCD_CP,LCD_EN,LOW);
+	
+	//dummy read
+	setPinVal(LCD_CP,LCD_EN,HIGH);
+	_delay_us(50);
+	setPinVal(LCD_CP,LCD_EN,LOW);
+	
+	//setting high nibble to output
+	setHighNibDir(LCD_DP,OUT);
+	
+	state=state>>3;
+	return state;
+}
 void LCD_clearDisplay()
 {
 	LCD_sendCom(0x01);
@@ -135,7 +162,7 @@ void LCD_backSpace()
   	LCD_sendCom(LCD_MOVE_CURSOR_LEFT);
 }
 
-uint8 LCD_createChar(char *C)
+uint8 LCD_createChar(char C[])
 {
 	static uint8 CGRAM_add = 0x00;
 	LCD_sendCom(0x40+CGRAM_add);//set CGRAM and load AC with "CGRAM_add"
@@ -146,7 +173,7 @@ uint8 LCD_createChar(char *C)
 	}
 	LCD_sendCom(0x80);// set CGRAM and load AC with 0x00
 	_delay_ms(5);
-	uint8 DDRAM_add = CGRAM_add/0x07;
+	uint8 DDRAM_add = (CGRAM_add/0x07);
 	CGRAM_add+=0x07;
 	return DDRAM_add;
 }

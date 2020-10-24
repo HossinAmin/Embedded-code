@@ -95,3 +95,19 @@ Bool USART_getRCflag()
 {
  return CHECKBIT(UCSRA,RXC);
 }
+
+void USART_sendString(char *str)
+{
+	for(uint8 i = 0;True;i++)
+	{
+		while (USART_getERflag()==0);
+		if (str[i]=='\0')
+		{
+			break;
+		}
+		else
+		{
+			USART_sendChar(str[i]);
+		}
+	}
+}

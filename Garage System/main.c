@@ -4,24 +4,30 @@
 #include "Door/Door.h"
 #include <avr/interrupt.h>
 
-//defining maximum size of password
+//Defining maximum size of password
 #define PasswordMaxLen	8
 
-//defining indicators port and pins
+//Defining indicators port and pins
 #define LEDport		   'd'
 #define RedLED			5
 #define GreenLED		6
 #define YellowLED		7
 
-//function prototypes
+//Defining modes
+#define Remote		   'r'
+#define Local		   'l'
+
+
+//Function prototypes
 Bool checkPass(char pass[]);
 void clearBuffer(char Buffer[]);
 void clearPassDisp();
 Bool checkQuit(char Buffer[]);
 
-//global variable
+//Global variable
 const char password[PasswordMaxLen] = "1234";
-char  inputChar = '\n';
+uint8 accessMode = 'l';
+char  inputChar = '\0';
 char  inputBuffer[PasswordMaxLen];
 uint8 BufferCounter = 0 ;
 
@@ -47,12 +53,20 @@ int main()
 	
 	//main loop
 	while(1)
-	{	
+	{
 		//Enable receiver interrupt
 		USART_setInterruptRxEable(True);
 		
-		//getting Keypad input
-		inputChar = KP_getKey();
+		//Checking on mode of operation
+		if (accessMode==Local)
+		{
+			inputChar = KP_getKey();
+		}
+		else
+		{
+			//pass
+		}
+		
 		
 		//checking input
 		if(inputChar == '\0')
@@ -64,20 +78,20 @@ int main()
 			if (BufferCounter!=0)
 			{
 				LCD_backSpace();
-				BufferCounter--;				
+				BufferCounter--;
 			}
 			else
 			{
 				//pass
 			}
-
 		}
-		else if (inputChar == '*')// * is F2 in my keypad
+		else if ((inputChar == '\r'))// * is F2 in my keypad
 		{
 			//checking if the password is correct
 			if (checkPass(inputBuffer)==True)
 			{
-				setPinVal(LEDport,GreenLED,HIGH);				
+				//Blink green LED and open door
+				setPinVal(LEDport,GreenLED,HIGH);
 				openDoor();
 				_delay_ms(1500);
 				setPinVal(LEDport,GreenLED,LOW);
@@ -96,25 +110,34 @@ int main()
 				_delay_ms(200);
 			}
 			
+			//Turn off
+			setPinVal(LEDport,YellowLED,LOW);
+			
 			//clear the Buffer and LCD
+			inputChar = '\0';
 			clearBuffer(inputBuffer);
 			clearPassDisp();
-			BufferCounter=0;
+			BufferCounter = 0;
 			
 		}
 		else
 		{
-			if (BufferCounter<PasswordMaxLen)
+			//filling buffer form local access point
+			if (accessMode==Local)
 			{
-				inputBuffer[BufferCounter]=inputChar;
-				LCD_sendData(inputChar);
-				BufferCounter++;
+				if (BufferCounter<PasswordMaxLen)
+				{
+					inputBuffer[BufferCounter]=inputChar;
+					LCD_sendData(inputChar);
+					BufferCounter++;
+				}
 			}
 			else
 			{
 				//pass
 			}
 		}
+		
 	}
 }
 
@@ -123,84 +146,36 @@ ISR(USART_RXC_vect)
 	//indicator that you are in remote access mode
 	setPinVal(LEDport,YellowLED,HIGH);
 	
-	//clear Buffer and LCD
+	//changing access mode to remote
+	accessMode = Remote;
+	
+	//clear Buffer and counter
 	BufferCounter=0;
 	clearBuffer(inputBuffer);
 	
-	//disable interrupt so i can fill Buffer 
+	//disable interrupt so i can fill Buffer
 	USART_setInterruptRxEable(False);
-	
+
 	while (1)
 	{
-		while (1)
+		//filling Buffer from remote access
+		while(USART_getRCflag()==0);
+		if (BufferCounter<9)
 		{
-			//filling Buffer with message
-			while(USART_getRCflag()==0);
-			if (BufferCounter<9)
-			{
-				inputChar=USART_reciveChar();
-				if (inputChar=='\n')
-				{
-					break;
-				}
-				inputBuffer[BufferCounter]=inputChar;
-				BufferCounter++;
-			}
-			else
+			inputChar=USART_reciveChar();
+			if (inputChar=='\r')
 			{
 				break;
 			}
-			
-		}
-		
-		
-		//checking if the buffer is equal to the password
-		if(checkPass(inputBuffer)==True)
-		{
-			//action to be taken if
-			setPinVal(LEDport,GreenLED,HIGH);
-			openDoor();
-			_delay_ms(1500);
-			setPinVal(LEDport,GreenLED,LOW);
-			closeDoor();
-			
-			//clear Buffer and counter
-			clearPassDisp();
-			BufferCounter = 0;
-			clearBuffer(inputBuffer);
-			
-			//indicator of exiting remote mode
-			setPinVal(LEDport,YellowLED,LOW);
-			break;
-		}
-		else if(checkQuit(inputBuffer)==True)//checks if you want to exist remote mode
-		{
-			//clear buffer and counter
-			clearPassDisp();
-			BufferCounter = 0;
-			clearBuffer(inputBuffer);
-			//indicator of exiting remote mode			
-			setPinVal(LEDport,YellowLED,LOW);
-			break;
+			inputBuffer[BufferCounter]=inputChar;
+			BufferCounter++;
 		}
 		else
 		{
-			//blink red LED
-			setPinVal(LEDport,RedLED,HIGH);
-			_delay_ms(150);
-			setPinVal(LEDport,RedLED,LOW);
-			_delay_ms(150);
-			setPinVal(LEDport,RedLED,HIGH);
-			_delay_ms(150);
-			setPinVal(LEDport,RedLED,LOW);
-			_delay_ms(150);
-			
-			//clear Buffer and counter
-			clearPassDisp();
-			BufferCounter = 0;
-			clearBuffer(inputBuffer);
-			
+			inputChar = '\r';
+			break;
 		}
+		
 	}
 	
 }
@@ -240,25 +215,4 @@ void clearPassDisp()
 	while(LCD_isBusy()==1);
 	LCD_sendString("        ");
 	LCD_GotoXY(0,1);
-}
-
-Bool checkQuit(char Buffer[])
-{
-	const char inst[] = "quit";
-	uint8 count = 0;
-	for (uint8 i = 0; i<4;i++)
-	{
-		if (Buffer[i]==inst[i])
-		{
-			count++;
-		}
-	}
-	if (count==4)
-	{
-		return True;
-	}
-	else
-	{
-		return False;
-	}
 }

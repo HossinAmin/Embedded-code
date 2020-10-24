@@ -28,6 +28,7 @@ char USART_reciveChar();
 Bool USART_getERflag();
 Bool USART_getTCflag();
 Bool USART_getRCflag();
+void USART_sendString(char *str);
 
 
 #endif /* USART_H_ */

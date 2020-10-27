@@ -3,6 +3,7 @@
 #include "KP/KP.h"
 #include "Door/Door.h"
 #include <avr/interrupt.h>
+#include <avr/eeprom.h>
 
 //Defining maximum size of password
 #define PasswordMaxLen	8
@@ -13,19 +14,16 @@
 #define GreenLED		6
 #define YellowLED		7
 
-//Defining modes
-#define Remote		   'r'
-#define Local		   'l'
-
-
 //Function prototypes
 Bool checkPass(char pass[]);
 void clearBuffer(char Buffer[]);
 void clearPassDisp();
-Bool checkQuit(char Buffer[]);
+void saveBuffer(char buffer[]);
+void loadBuffer(char buffer[]);
+void changePass();
 
 //Global variable
-const char password[PasswordMaxLen] = "1234";
+char password[PasswordMaxLen] = "1234";
 uint8 accessMode = 'l';
 char  inputChar = '\0';
 char  inputBuffer[PasswordMaxLen];
@@ -33,6 +31,9 @@ uint8 BufferCounter = 0 ;
 
 int main()
 {
+	//Load Buffer from memory
+	loadBuffer(password);
+	
 	//initializing hardware
 	setPinDir(LEDport,RedLED,OUT);
 	setPinDir(LEDport,GreenLED,OUT);
@@ -58,16 +59,15 @@ int main()
 		USART_setInterruptRxEable(True);
 		
 		//Checking on mode of operation
-		if (accessMode==Local)
+		if (accessMode=='l')
 		{
 			inputChar = KP_getKey();
 		}
 		else
 		{
-			//pass
+			inputChar='\r';
 		}
-		
-		
+
 		//checking input
 		if(inputChar == '\0')
 		{
@@ -85,8 +85,10 @@ int main()
 				//pass
 			}
 		}
-		else if ((inputChar == '\r'))// * is F2 in my keypad
+		else if (inputChar == '\r')// * is F2 in my keypad
 		{
+			//making a critical section
+			cli();	
 			//checking if the password is correct
 			if (checkPass(inputBuffer)==True)
 			{
@@ -94,6 +96,16 @@ int main()
 				setPinVal(LEDport,GreenLED,HIGH);
 				openDoor();
 				_delay_ms(1500);
+				
+				if (KP_getKey()=='+')
+				{
+					_delay_ms(2000);
+					if (KP_getKey()=='+')
+					{
+						changePass();
+					}
+				}
+				
 				setPinVal(LEDport,GreenLED,LOW);
 				closeDoor();
 			}
@@ -109,6 +121,8 @@ int main()
 				setPinVal(LEDport,RedLED,LOW);
 				_delay_ms(200);
 			}
+			//
+			accessMode = 'l';
 			
 			//Turn off
 			setPinVal(LEDport,YellowLED,LOW);
@@ -118,12 +132,12 @@ int main()
 			clearBuffer(inputBuffer);
 			clearPassDisp();
 			BufferCounter = 0;
+			sei();
 			
 		}
 		else
 		{
-			//filling buffer form local access point
-			if (accessMode==Local)
+			if (accessMode=='l')
 			{
 				if (BufferCounter<PasswordMaxLen)
 				{
@@ -145,26 +159,25 @@ ISR(USART_RXC_vect)
 {
 	//indicator that you are in remote access mode
 	setPinVal(LEDport,YellowLED,HIGH);
-	
 	//changing access mode to remote
-	accessMode = Remote;
+	accessMode = 'r';	
+
 	
-	//clear Buffer and counter
+	//clear Buffer and LCD
 	BufferCounter=0;
 	clearBuffer(inputBuffer);
 	
-	//disable interrupt so i can fill Buffer
-	USART_setInterruptRxEable(False);
-
+	
 	while (1)
 	{
-		//filling Buffer from remote access
+		//filling Buffer with message
 		while(USART_getRCflag()==0);
 		if (BufferCounter<9)
 		{
 			inputChar=USART_reciveChar();
 			if (inputChar=='\r')
 			{
+				
 				break;
 			}
 			inputBuffer[BufferCounter]=inputChar;
@@ -172,12 +185,13 @@ ISR(USART_RXC_vect)
 		}
 		else
 		{
-			inputChar = '\r';
 			break;
 		}
 		
-	}
-	
+	}	
+	//disable interrupt so i can fill Buffer
+	USART_setInterruptRxEable(False);
+
 }
 
 Bool checkPass(char pass[])
@@ -215,4 +229,84 @@ void clearPassDisp()
 	while(LCD_isBusy()==1);
 	LCD_sendString("        ");
 	LCD_GotoXY(0,1);
+}
+
+void loadBuffer(char buffer[])
+{
+	for (uint8 i = 0;i<PasswordMaxLen;i++)
+	{
+		buffer[i] = eeprom_read_byte(i);
+		eeprom_busy_wait();
+	}
+}
+
+void saveBuffer(char buffer[])
+{
+	for (uint8 i = 0;i<PasswordMaxLen;i++)
+	{
+		eeprom_write_byte(i,buffer[i]);
+		eeprom_busy_wait();
+	}
+}
+
+void changePass()
+{
+	BufferCounter=0;
+	clearBuffer(inputBuffer);
+	
+	//clear LCD
+	LCD_clearDisplay();
+	while (LCD_isBusy());
+	//Print new user instructions
+	LCD_sendString("Change Pass:");
+	_delay_ms(5);
+	LCD_sendCom(LCD_BEGIN_AT_SECOND_RAW);
+	
+	while (1)
+	{
+		inputChar = KP_getKey();
+		if (inputChar == '\0' || inputChar == '+')
+		{
+			//pass
+		}
+		else if (inputChar == '-')// - is F1 in my keypad
+		{
+			if (BufferCounter!=0)
+			{
+				LCD_backSpace();
+				BufferCounter--;
+			}
+			else
+			{
+				//pass
+			}
+		}
+		else if (inputChar == '\r')
+		{
+			saveBuffer(inputBuffer);
+			break;
+		}
+		else
+		{
+			if (BufferCounter<PasswordMaxLen)
+			{
+				inputBuffer[BufferCounter]=inputChar;
+				LCD_sendData(inputChar);
+				BufferCounter++;
+			}
+			else
+			{
+				//pass
+			}			
+		}
+	}
+	
+	
+	//clear LCD
+	LCD_clearDisplay();
+	while (LCD_isBusy());
+	//Print new user instructions
+	LCD_sendString("Enter Password:");
+	_delay_ms(5);
+	LCD_sendCom(LCD_BEGIN_AT_SECOND_RAW);
 }
